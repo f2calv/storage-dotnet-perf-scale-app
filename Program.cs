@@ -23,6 +23,9 @@
 //------------------------------------------------------------------------------
 namespace AzPerf
 {
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Blob;
+    using Microsoft.WindowsAzure.Storage.RetryPolicies;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -31,14 +34,11 @@ namespace AzPerf
     using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.RetryPolicies;
 
     /// <summary>
     /// Azure Storage Performance and Scalability Sample - Demonstrate how to use use parallelism with. 
     /// Azure blob storage in conjunction with large block sizes to transfer larges amount of data 
-    /// effectiviely and efficiently.
+    /// effectively and efficiently.
     ///
     /// Note: This sample uses the .NET asynchronous programming model to demonstrate how to call the Storage Service using the 
     /// storage client libraries asynchronous API's. When used in real applications this approach enables you to improve the 
@@ -62,13 +62,13 @@ namespace AzPerf
         // The method reads an environment variable that is used to store the connection string to the storage account.
         // The retry policy on the CloudBlobClient object is set to an Exponential retry policy with a back off of 2 seconds
         // and a max attempts of 10 times.
-        public static CloudBlobClient GetCloudBlobClient()
+        static CloudBlobClient GetCloudBlobClient()
         {
             // Load the connection string for use with the application. The storage connection string is stored
             // in an environment variable on the machine running the application called storageconnectionstring.
             // If the environment variable is created after the application is launched in a console or with Visual
             // studio the shell needs to be closed and reloaded to take the environment variable into account.
-            string storageConnectionString = Environment.GetEnvironmentVariable("storageconnectionstring");
+            var storageConnectionString = Environment.GetEnvironmentVariable("storageconnectionstring");
             if (storageConnectionString == null)
             {
                 Console.WriteLine(
@@ -77,12 +77,12 @@ namespace AzPerf
                     "connection string as a value.");
             }
             try
-            { 
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnectionString);
-            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-            IRetryPolicy exponentialRetryPolicy = new ExponentialRetry(TimeSpan.FromSeconds(2), 10);
-            blobClient.DefaultRequestOptions.RetryPolicy = exponentialRetryPolicy;
-            return blobClient;
+            {
+                var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
+                var blobClient = storageAccount.CreateCloudBlobClient();
+                var exponentialRetryPolicy = new ExponentialRetry(TimeSpan.FromSeconds(2), 10);
+                blobClient.DefaultRequestOptions.RetryPolicy = exponentialRetryPolicy;
+                return blobClient;
             }
             catch (StorageException ex)
             {
@@ -93,13 +93,13 @@ namespace AzPerf
 
         // This Asynchronous task is used to create random containers with the storage account.
         // A collection of CloudBlobContainers is returned from this helper task to the caller.
-        public static async Task<CloudBlobContainer[]> GetRandomContainersAsync()
+        static async Task<CloudBlobContainer[]> GetRandomContainersAsync()
         {
-            CloudBlobClient blobClient = GetCloudBlobClient();
-            CloudBlobContainer[] blobContainers = new CloudBlobContainer[5];
+            var blobClient = GetCloudBlobClient();
+            var blobContainers = new CloudBlobContainer[5];
             for (int i = 0; i < blobContainers.Length; i++)
             {
-                blobContainers[i] = blobClient.GetContainerReference(System.Guid.NewGuid().ToString());
+                blobContainers[i] = blobClient.GetContainerReference(Guid.NewGuid().ToString());
                 try
                 {
                     await blobContainers[i].CreateIfNotExistsAsync();
@@ -116,7 +116,7 @@ namespace AzPerf
             return blobContainers;
         }
 
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             Console.WriteLine("Azure Blob storage performance and scalability sample");
             // Set threading and default connection limit to 100 to ensure multiple threads and connections can be opened.
@@ -124,15 +124,15 @@ namespace AzPerf
             ThreadPool.SetMinThreads(100, 4);
             ServicePointManager.DefaultConnectionLimit = 100; // (Or More)
 
-            bool exception = false;
+            var exception = false;
             try
             {
                 // Call the UploadFilesAsync function.
-                UploadFilesAsync().GetAwaiter().GetResult();
+                await UploadFilesAsync();
 
                 // Uncomment the following line to enable downloading of files from the storage account.  This is commented out
                 // initially to support the tutorial at https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-scaleable-app-download-files.
-                // DownloadFilesAsync().GetAwaiter().GetResult();
+                // await DownloadFilesAsync();
             }
             catch (Exception ex)
             {
@@ -145,7 +145,7 @@ namespace AzPerf
                 // As the tutorial at https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-scaleable-app-download-files has you upload only for one tutorial and download for the other. 
                 if (!exception)
                 {
-                    // DeleteExistingContainersAsync().GetAwaiter().GetResult();
+                    // await DeleteExistingContainersAsync();
                 }
                 Console.WriteLine("Press any key to exit the application");
                 Console.ReadKey();
@@ -155,11 +155,11 @@ namespace AzPerf
         // An asynchronous task used to upload the files to the storage account. The task retrives the containers to be used to 
         // upload the files to.  It then iterates through the upload directory in the project and uploads the files in parallel 
         // to the storage account in 100mb block chunks.
-        private static async Task UploadFilesAsync()
+        static async Task UploadFilesAsync()
         {
             // Create random 5 characters containers to upload files to.
             CloudBlobContainer[] containers = await GetRandomContainersAsync();
-            var currentdir = System.IO.Directory.GetCurrentDirectory();
+            var currentdir = Directory.GetCurrentDirectory();
 
             // path to the directory to upload
             string uploadPath = currentdir + "\\upload";
@@ -230,12 +230,12 @@ namespace AzPerf
 
         // Asynchronous task used to download files from the storage account.  The task lists through the containers in the 
         // storage account and downloads all of the block blobs listed in the containers..
-        private static async Task DownloadFilesAsync()
+        static async Task DownloadFilesAsync()
         {
-            CloudBlobClient blobClient = GetCloudBlobClient();
+            var blobClient = GetCloudBlobClient();
 
             // Define the BlobRequestionOptions on the download, including disabling MD5 hash validation for this example, this improves the download speed.
-            BlobRequestOptions options = new BlobRequestOptions
+            var options = new BlobRequestOptions
             {
                 DisableContentMD5Validation = true,
                 StoreBlobContentMD5 = false
@@ -243,7 +243,7 @@ namespace AzPerf
 
             // Retrieve the list of containers in the storage account.  Create a directory and configure variables for use later.
             BlobContinuationToken continuationToken = null;
-            List<CloudBlobContainer> containers = new List<CloudBlobContainer>();
+            var containers = new List<CloudBlobContainer>();
             do
             {
                 var listingResult = await blobClient.ListContainersSegmentedAsync(continuationToken);
@@ -254,20 +254,20 @@ namespace AzPerf
 
             var directory = Directory.CreateDirectory("download");
             BlobResultSegment resultSegment = null;
-            Stopwatch time = Stopwatch.StartNew();
+            var time = Stopwatch.StartNew();
 
             // Download the blobs
             try
             {
-                List<Task> tasks = new List<Task>();
-                int max_outstanding = 100;
-                int completed_count = 0;
+                var tasks = new List<Task>();
+                var max_outstanding = 100;
+                var completed_count = 0;
 
                 // Create a new instance of the SemaphoreSlim class to define the number of threads to use in the application.
-                SemaphoreSlim sem = new SemaphoreSlim(max_outstanding, max_outstanding);
+                var sem = new SemaphoreSlim(max_outstanding, max_outstanding);
 
                 // Iterate through the containers
-                foreach (CloudBlobContainer container in containers)
+                foreach (var container in containers)
                 {
                     do
                     {
@@ -277,11 +277,10 @@ namespace AzPerf
                         {
                             foreach (var blobItem in resultSegment.Results)
                             {
-
                                 if (((CloudBlob)blobItem).Properties.BlobType == BlobType.BlockBlob)
                                 {
                                     // Get the blob and add a task to download the blob asynchronously from the storage account.
-                                    CloudBlockBlob blockBlob = container.GetBlockBlobReference(((CloudBlockBlob)blobItem).Name);
+                                    var blockBlob = container.GetBlockBlobReference(((CloudBlockBlob)blobItem).Name);
                                     Console.WriteLine("Downloading {0} from container {1}", blockBlob.Name, container.Name);
                                     await sem.WaitAsync();
                                     tasks.Add(blockBlob.DownloadToFileAsync(directory.FullName + "\\" + blockBlob.Name, FileMode.Create, null, options, null).ContinueWith((t) =>
@@ -289,7 +288,6 @@ namespace AzPerf
                                         sem.Release();
                                         Interlocked.Increment(ref completed_count);
                                     }));
-
                                 }
                             }
                         }
@@ -311,12 +309,12 @@ namespace AzPerf
         }
 
         // Iterates through the containers in a storage account using the ListContainersSegmentedAsync method. Then it deletes the containers which subsequently deletes the blobs.
-        private static async Task DeleteExistingContainersAsync()
+        static async Task DeleteExistingContainersAsync()
         {
             Console.WriteLine("Deleting the containers");
-            CloudBlobClient blobClient = GetCloudBlobClient();
+            var blobClient = GetCloudBlobClient();
             BlobContinuationToken continuationToken = null;
-            List<CloudBlobContainer> containers = new List<CloudBlobContainer>();
+            var containers = new List<CloudBlobContainer>();
             do
             {
                 var listingResult = await blobClient.ListContainersSegmentedAsync(continuationToken);
